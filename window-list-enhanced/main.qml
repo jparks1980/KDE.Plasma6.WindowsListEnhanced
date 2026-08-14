@@ -23,6 +23,7 @@ PlasmoidItem {
     property string lastActiveTaskName: ""
     property /*QIcon*/ var lastActiveTaskIcon: ""
     property bool suppressNextActiveTaskSync: false
+    property double activeTaskSyncBlockedUntilMs: 0
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
     readonly property int listOrderSortByAppDesc: 2
@@ -216,6 +217,10 @@ PlasmoidItem {
         root.lastActiveTaskIcon = tasksModel.data(modelIndex, 1 /* decoration role */)
     }
 
+    function blockActiveTaskSync(milliseconds) {
+        root.activeTaskSyncBlockedUntilMs = Date.now() + milliseconds
+    }
+
     function isItemInTree(item, treeRoot) {
         let current = item
         while (current) {
@@ -283,6 +288,10 @@ PlasmoidItem {
             root.updateLongestWindowTitle();
         }
         function onActiveTaskChanged() {
+            if (Date.now() < root.activeTaskSyncBlockedUntilMs) {
+                return
+            }
+
             if (root.suppressNextActiveTaskSync) {
                 root.suppressNextActiveTaskSync = false
                 return
@@ -779,6 +788,7 @@ PlasmoidItem {
                     snapshotCurrentDisplay()
                 } else {
                     root.suppressNextActiveTaskSync = true
+                    root.blockActiveTaskSync(1200)
                 }
                 root.expanded = !root.expanded
             }

@@ -352,16 +352,6 @@ PlasmoidItem {
                     if (expanded) {
                         windowListView.currentIndex = -1
 
-                        // Needed for when for expanded with Global Shortcut
-                        if (tasksModel.activeTask.valid) {
-                            root.lastActiveTaskName = tasksModel.data(tasksModel.activeTask, TaskManager.AbstractTasksModel.AppName) ||
-                            tasksModel.data(tasksModel.activeTask, 0 /* display name, window title if app name not present */)
-                            root.lastActiveTaskIcon = tasksModel.data(tasksModel.activeTask, 1 /* decorationrole */)
-                        } else {
-                            root.lastActiveTaskName = ""
-                            root.lastActiveTaskIcon = ""
-                        }
-
                         root.updateLongestWindowTitle();
                     }
                 }
@@ -658,6 +648,11 @@ PlasmoidItem {
             Layout.fillHeight: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
             Layout.fillWidth: Plasmoid.formFactor === PlasmaCore.Types.Vertical
 
+            function snapshotCurrentDisplay() {
+                root.lastActiveTaskName = menuButton.text || ""
+                root.lastActiveTaskIcon = menuButton.iconSource || ""
+            }
+
             QQC2.Menu {
                 id: compactContextMenu
                 popupType: QQC2.Popup.Window
@@ -759,12 +754,16 @@ PlasmoidItem {
             }
 
             onClicked: {
-                if (tasksModel.activeTask.valid) {
-                    root.lastActiveTaskName = tasksModel.data(tasksModel.activeTask, TaskManager.AbstractTasksModel.AppName) ||
-                       tasksModel.data(tasksModel.activeTask, 0 /* display name, window title if app name not present */)
-                    root.lastActiveTaskIcon = tasksModel.data(tasksModel.activeTask, 1 /* decorationrole */)
+                if (!root.expanded) {
+                    snapshotCurrentDisplay()
                 }
                 root.expanded = !root.expanded
+            }
+
+            onPressedChanged: {
+                if (pressed && !root.expanded) {
+                    snapshotCurrentDisplay()
+                }
             }
             down: pressed || root.expanded
 
@@ -799,12 +798,8 @@ PlasmoidItem {
 
             onHoveredChanged: {
                 if (hovered) {
-                    if (tasksModel.activeTask.valid) {
-                        root.lastActiveTaskName = tasksModel.data(tasksModel.activeTask, TaskManager.AbstractTasksModel.AppName) ||
-                       tasksModel.data(tasksModel.activeTask, 0 /* display name, window title if app name not present */)
-                       root.lastActiveTaskIcon = tasksModel.data(tasksModel.activeTask, 1 /* decorationrole */)
-                    }
                     if (Plasmoid.configuration.openOnHover) {
+                        snapshotCurrentDisplay()
                         hoverOpenTimer.start()
                     }
                 } else {

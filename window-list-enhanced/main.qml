@@ -20,6 +20,9 @@ import org.kde.taskmanager as TaskManager
 PlasmoidItem {
     id: root
 
+    // Cached display/focus state for compact mode. These values let us preserve
+    // app context through popup/configure transitions where TaskManager can
+    // briefly report a different active task.
     property string lastActiveTaskName: ""
     property /*QIcon*/ var lastActiveTaskIcon: ""
     property string lastActiveTaskKey: ""
@@ -36,6 +39,7 @@ PlasmoidItem {
     readonly property int listOrderCustom: 3
     readonly property bool usingCustomOrder: Plasmoid.configuration.windowListOrder === root.listOrderCustom
 
+    // Backing model used only for Custom mode so drag/drop order can persist.
     property ListModel customTasksModel: ListModel {}
 
     Plasmoid.constraintHints: Plasmoid.CanFillArea
@@ -127,6 +131,7 @@ PlasmoidItem {
             return ""
         }
 
+        // Prefer window IDs when available; they are the most stable key.
         const winIds = tasksModel.data(idx, TaskManager.AbstractTasksModel.WinIdList)
 
         if (winIds && winIds.length) {
@@ -136,6 +141,7 @@ PlasmoidItem {
         const appPid = tasksModel.data(idx, TaskManager.AbstractTasksModel.AppPid)
         const appName = tasksModel.data(idx, TaskManager.AbstractTasksModel.AppName) || ""
         const title = tasksModel.data(idx, 0) || ""
+        // Fallback key when no winId exists (startup/group edge cases).
         return "f:" + String(appPid) + ":" + appName + ":" + title
     }
 
@@ -204,6 +210,7 @@ PlasmoidItem {
         const ordered = []
         const usedKeys = {}
 
+        // First keep any user-defined sequence that still matches live tasks.
         for (const key of savedOrder) {
             const match = items.find(item => item.taskKey === key && !usedKeys[item.taskKey])
             if (match) {
@@ -212,6 +219,7 @@ PlasmoidItem {
             }
         }
 
+        // Then append new/untracked tasks so nothing disappears from the list.
         for (const item of items) {
             if (!usedKeys[item.taskKey]) {
                 ordered.push(item)
@@ -247,6 +255,8 @@ PlasmoidItem {
     }
 
     function blockActiveTaskSync(milliseconds) {
+        // Small guard window to ignore transient active-task flips during
+        // popup/configure transitions.
         root.activeTaskSyncBlockedUntilMs = Date.now() + milliseconds
     }
 
@@ -269,6 +279,8 @@ PlasmoidItem {
                 return
             }
 
+            // Configure dialog is gone and panel window is active again;
+            // re-focus the task that was active before opening Configure.
             root.pendingConfigureRefocus = false
             stop()
             root.requestActivateTaskByKey(root.preConfigureFocusedTaskKey)
@@ -320,6 +332,7 @@ PlasmoidItem {
 
     function applyWindowListOrder() {
         if (usingCustomOrder) {
+            // Custom mode uses the persisted local model, not TaskManager sort.
             rebuildCustomTasksModel()
             return
         }
@@ -438,6 +451,8 @@ PlasmoidItem {
 
                         root.updateLongestWindowTitle();
                     } else if (root.refocusAfterToggleClose) {
+                        // Toggle-close should return focus to the task that was
+                        // active before the popup was opened.
                         root.refocusAfterToggleClose = false
                         root.requestActivateTaskByKey(root.preToggleFocusedTaskKey)
                     }
@@ -648,6 +663,8 @@ PlasmoidItem {
                             return
                         }
 
+                        // Drag starts only after crossing a small threshold so
+                        // simple click still activates the task.
                         if (!dragMoved && Math.abs(mouse.y - pressedY) > Kirigami.Units.smallSpacing * 2) {
                             dragMoved = true
                         }
@@ -742,6 +759,7 @@ PlasmoidItem {
             }
 
             function prepareConfigureRefocus() {
+                // Capture current task context before opening the Configure UI.
                 root.preConfigureFocusedTaskKey = root.lastActiveTaskKey !== ""
                     ? root.lastActiveTaskKey
                     : root.taskKeyForModelIndex(tasksModel.activeTask)
@@ -843,6 +861,9 @@ PlasmoidItem {
 
                 onPressed: function(mouse) {
                     if (mouse.button === Qt.RightButton) {
+                        // Right-click can briefly influence activeTask; snapshot
+                        // current display state first so Configure refocus uses
+                        // the intended task.
                         snapshotCurrentDisplay()
                         root.blockActiveTaskSync(1200)
                     }

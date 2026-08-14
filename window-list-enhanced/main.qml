@@ -22,6 +22,7 @@ PlasmoidItem {
 
     property string lastActiveTaskName: ""
     property /*QIcon*/ var lastActiveTaskIcon: ""
+    property bool suppressNextActiveTaskSync: false
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
     readonly property int listOrderSortByAppDesc: 2
@@ -205,6 +206,16 @@ PlasmoidItem {
         return modelData.index
     }
 
+    function setLastActiveFromModelIndex(modelIndex) {
+        if (!modelIndex || !modelIndex.valid) {
+            return
+        }
+
+        root.lastActiveTaskName = tasksModel.data(modelIndex, TaskManager.AbstractTasksModel.AppName)
+            || tasksModel.data(modelIndex, 0 /* display name, window title if app name not present */)
+        root.lastActiveTaskIcon = tasksModel.data(modelIndex, 1 /* decoration role */)
+    }
+
     function isItemInTree(item, treeRoot) {
         let current = item
         while (current) {
@@ -270,6 +281,16 @@ PlasmoidItem {
         function onCountChanged() {
             root.applyWindowListOrder();
             root.updateLongestWindowTitle();
+        }
+        function onActiveTaskChanged() {
+            if (root.suppressNextActiveTaskSync) {
+                root.suppressNextActiveTaskSync = false
+                return
+            }
+
+            if (!root.expanded) {
+                root.setLastActiveFromModelIndex(tasksModel.activeTask)
+            }
         }
     }
 
@@ -756,6 +777,8 @@ PlasmoidItem {
             onClicked: {
                 if (!root.expanded) {
                     snapshotCurrentDisplay()
+                } else {
+                    root.suppressNextActiveTaskSync = true
                 }
                 root.expanded = !root.expanded
             }
@@ -772,6 +795,8 @@ PlasmoidItem {
 
             text: if (root.expanded && root.lastActiveTaskName !== "") {
                 return root.lastActiveTaskName
+            } else if (root.lastActiveTaskName !== "") {
+                return root.lastActiveTaskName
             } else if (tasksModel.activeTask.valid) {
                 return tasksModel.data(tasksModel.activeTask, TaskManager.AbstractTasksModel.AppName) ||
                        tasksModel.data(tasksModel.activeTask, 0 /* display name, window title if app name not present */)
@@ -780,6 +805,8 @@ PlasmoidItem {
             }
 
             iconSource: if (expanded && root.lastActiveTaskIcon) {
+                return root.lastActiveTaskIcon
+            } else if (root.lastActiveTaskIcon) {
                 return root.lastActiveTaskIcon
             } else if (tasksModel.activeTask.valid) {
                 return tasksModel.data(tasksModel.activeTask, 1 /* decorationrole */)

@@ -369,13 +369,12 @@ PlasmoidItem {
 
             Connections {
                 target: windowListView.Window.window
-                function onActiveFocusItemChanged() {
+                function onActiveChanged() {
                     if (!root.expanded || !windowListView.Window.window) {
                         return
                     }
 
-                    const focusItem = windowListView.Window.window.activeFocusItem
-                    if (!focusItem || !root.isItemInTree(focusItem, windowListView)) {
+                    if (!windowListView.Window.window.active) {
                         root.expanded = false
                     }
                 }
@@ -425,6 +424,8 @@ PlasmoidItem {
 
                 required property var model
                 required property var decoration
+                readonly property bool hasSourceTask: !(inPanel && tasksModel.count === 0)
+                readonly property int sourceIndex: root.sourceIndexForDelegateItem(model)
 
                 width: {
                     if (inPanel) {
@@ -442,7 +443,9 @@ PlasmoidItem {
                     Kirigami.Icon {
                         id: iconItem
 
-                        source: delegate.decoration
+                        source: delegate.hasSourceTask
+                            ? tasksModel.data(tasksModel.makeModelIndex(delegate.sourceIndex), 1 /* decoration role */)
+                            : delegate.decoration
                         visible: source !== "" && iconItem.valid
 
                         implicitWidth: Kirigami.Units.iconSizes.sizeForLabels
@@ -584,13 +587,18 @@ PlasmoidItem {
                     }
 
                     onReleased: function(mouse) {
+                        if (!delegate.hasSourceTask) {
+                            mouse.accepted = true
+                            return
+                        }
+
                         if (dragMoved && root.usingCustomOrder) {
                             mouse.accepted = true
                             return
                         }
 
                         windowListView.currentIndex = model.index
-                        const sourceIndex = root.sourceIndexForDelegateItem(model)
+                        const sourceIndex = delegate.sourceIndex
                         tasksModel.requestActivate(tasksModel.makeModelIndex(sourceIndex))
                     }
                 }
@@ -601,6 +609,11 @@ PlasmoidItem {
                     hoverEnabled: false
                     preventStealing: true
                     onClicked: function(mouse) {
+                        if (!delegate.hasSourceTask) {
+                            mouse.accepted = true
+                            return
+                        }
+
                         if (mouse.button === Qt.RightButton) {
                             windowListView.currentIndex = model.index
                             taskContextMenu.popup()

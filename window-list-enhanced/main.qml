@@ -25,6 +25,10 @@ PlasmoidItem {
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
     readonly property int listOrderSortByAppDesc: 2
+    readonly property int listOrderCustom: 3
+    readonly property bool usingCustomOrder: Plasmoid.configuration.windowListOrder === root.listOrderCustom
+
+    property ListModel customTasksModel: ListModel {}
 
     Plasmoid.constraintHints: Plasmoid.CanFillArea
     compactRepresentation: windowListButton
@@ -94,6 +98,113 @@ PlasmoidItem {
 
     property int fullRepresentationDynamicWidth: 0
 
+    function formatWindowTitle(text) {
+        const title = text || ""
+        const maxTitleLength = Math.max(1, Number(Plasmoid.configuration.maxTitleLength || 50))
+
+        if (Plasmoid.configuration.enableMaxTitleLength && title.length > maxTitleLength) {
+            return title.slice(0, maxTitleLength) + "..."
+        }
+
+        return title
+    }
+
+    function taskKeyForSourceIndex(sourceIndex) {
+        const idx = tasksModel.makeModelIndex(sourceIndex)
+        const winIds = tasksModel.data(idx, TaskManager.AbstractTasksModel.WinIdList)
+
+        if (winIds && winIds.length) {
+            return "w:" + winIds.join(",")
+        }
+
+        const appPid = tasksModel.data(idx, TaskManager.AbstractTasksModel.AppPid)
+        const appName = tasksModel.data(idx, TaskManager.AbstractTasksModel.AppName) || ""
+        const title = tasksModel.data(idx, 0) || ""
+        return "f:" + String(appPid) + ":" + appName + ":" + title
+    }
+
+    function parseSavedCustomOrder() {
+        const raw = Plasmoid.configuration.customOrderKeys
+        if (!raw || raw === "") {
+            return []
+        }
+
+        try {
+            const parsed = JSON.parse(raw)
+            return Array.isArray(parsed) ? parsed : []
+        } catch (e) {
+            return []
+        }
+    }
+
+    function persistCustomOrderFromModel() {
+        const keys = []
+        for (let i = 0; i < customTasksModel.count; ++i) {
+            keys.push(customTasksModel.get(i).taskKey)
+        }
+
+        Plasmoid.configuration.customOrderKeys = JSON.stringify(keys)
+    }
+
+    function moveCustomTask(fromRow, toRow) {
+        if (fromRow < 0 || toRow < 0 || fromRow === toRow || fromRow >= customTasksModel.count || toRow >= customTasksModel.count) {
+            return
+        }
+
+        customTasksModel.move(fromRow, toRow, 1)
+        persistCustomOrderFromModel()
+    }
+
+    function rebuildCustomTasksModel() {
+        const items = []
+
+        for (let i = 0; i < tasksModel.count; ++i) {
+            const idx = tasksModel.makeModelIndex(i)
+            const title = tasksModel.data(idx, 0) || tasksModel.data(idx, TaskManager.AbstractTasksModel.AppName) || ""
+
+            items.push({
+                sourceIndex: i,
+                taskKey: taskKeyForSourceIndex(i),
+                display: title,
+                decoration: tasksModel.data(idx, 1 /* decoration role */),
+            })
+        }
+
+        const savedOrder = parseSavedCustomOrder()
+        const ordered = []
+        const usedKeys = {}
+
+        for (const key of savedOrder) {
+            const match = items.find(item => item.taskKey === key && !usedKeys[item.taskKey])
+            if (match) {
+                ordered.push(match)
+                usedKeys[match.taskKey] = true
+            }
+        }
+
+        for (const item of items) {
+            if (!usedKeys[item.taskKey]) {
+                ordered.push(item)
+                usedKeys[item.taskKey] = true
+            }
+        }
+
+        customTasksModel.clear()
+        for (const item of ordered) {
+            customTasksModel.append(item)
+        }
+
+        persistCustomOrderFromModel()
+    }
+
+    function sourceIndexForDelegateItem(modelData) {
+        if (usingCustomOrder) {
+            return modelData.sourceIndex
+        }
+
+        return modelData.index
+    }
+
     function updateLongestWindowTitle() {
         if (!tasksModel || !tasksModel.count) {
             longestWindowCaption = "";
@@ -105,9 +216,15 @@ PlasmoidItem {
 
         let maxWidth = 0;
         let longest = "";
-        for (let i = 0; i < tasksModel.count; ++i) {
-            let idx = tasksModel.makeModelIndex(i);
-            longestTextMetrics.text = tasksModel.data(idx, 0) || tasksModel.data(idx, TaskManager.AbstractTasksModel.AppName) || "";
+        const count = usingCustomOrder ? customTasksModel.count : tasksModel.count
+
+        for (let i = 0; i < count; ++i) {
+            if (usingCustomOrder) {
+                longestTextMetrics.text = formatWindowTitle(customTasksModel.get(i).display)
+            } else {
+                let idx = tasksModel.makeModelIndex(i);
+                longestTextMetrics.text = formatWindowTitle(tasksModel.data(idx, 0) || tasksModel.data(idx, TaskManager.AbstractTasksModel.AppName) || "");
+            }
             
             if (longestTextMetrics.width > maxWidth) {
                 maxWidth = longestTextMetrics.width;
@@ -120,6 +237,11 @@ PlasmoidItem {
     }
 
     function applyWindowListOrder() {
+        if (usingCustomOrder) {
+            rebuildCustomTasksModel()
+            return
+        }
+
         if (Plasmoid.configuration.windowListOrder === root.listOrderSortByAppDesc) {
             tasksModel.sort(0, Qt.DescendingOrder)
         } else {
@@ -133,6 +255,10 @@ PlasmoidItem {
             updateLongestWindowTitle();
             root.applyWindowListOrder();
         }
+        function onCountChanged() {
+            root.applyWindowListOrder();
+            root.updateLongestWindowTitle();
+        }
     }
 
     Connections {
@@ -140,6 +266,18 @@ PlasmoidItem {
         function onWindowListOrderChanged() {
             root.applyWindowListOrder();
             root.updateLongestWindowTitle();
+        }
+        function onEnableMaxTitleLengthChanged() {
+            root.updateLongestWindowTitle();
+            if (root.usingCustomOrder) {
+                root.rebuildCustomTasksModel();
+            }
+        }
+        function onMaxTitleLengthChanged() {
+            root.updateLongestWindowTitle();
+            if (root.usingCustomOrder) {
+                root.rebuildCustomTasksModel();
+            }
         }
     }
 
@@ -194,7 +332,7 @@ PlasmoidItem {
                 value: root.fullRepresentationDynamicWidth
             }
 
-            model: inPanel && tasksModel.count === 0 ? noWindowModel : tasksModel
+            model: inPanel && tasksModel.count === 0 ? noWindowModel : (root.usingCustomOrder ? customTasksModel : tasksModel)
         
             Connections {
                 target: root
@@ -232,13 +370,15 @@ PlasmoidItem {
 
             Keys.onEnterPressed: {
                 if (currentIndex >= 0 && currentIndex < windowListView.count) {
-                    tasksModel.requestActivate(tasksModel.makeModelIndex(currentIndex));
+                    const sourceIndex = root.sourceIndexForDelegateItem(windowListView.currentItem.model)
+                    tasksModel.requestActivate(tasksModel.makeModelIndex(sourceIndex));
                 }
             }
 
             Keys.onReturnPressed: {
                 if (currentIndex >= 0 && currentIndex < windowListView.count) {
-                    tasksModel.requestActivate(tasksModel.makeModelIndex(currentIndex));
+                    const sourceIndex = root.sourceIndexForDelegateItem(windowListView.currentItem.model)
+                    tasksModel.requestActivate(tasksModel.makeModelIndex(sourceIndex));
                 }
             }
 
@@ -292,7 +432,7 @@ PlasmoidItem {
                     }
                     PlasmaComponents.Label {
                         Layout.fillWidth: true
-                        text: delegate.model.display
+                        text: root.formatWindowTitle(delegate.model.display)
                         textFormat: Text.PlainText
                         elide: Text.ElideRight
                     }
@@ -302,11 +442,6 @@ PlasmoidItem {
                     if (hovered) {
                         windowListView.currentIndex = model.index
                     }
-                }
-
-                onClicked: {
-                    windowListView.currentIndex = model.index
-                    tasksModel.requestActivate(tasksModel.makeModelIndex(model.index))
                 }
 
                 QQC2.Menu {
@@ -330,14 +465,16 @@ PlasmoidItem {
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Activate")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestActivate(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestActivate(tasksModel.makeModelIndex(sourceIndex))
                         })
                     }
 
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Open New Window")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestNewInstance(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestNewInstance(tasksModel.makeModelIndex(sourceIndex))
                         })
                     }
 
@@ -346,28 +483,32 @@ PlasmoidItem {
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Toggle Minimized")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestToggleMinimized(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestToggleMinimized(tasksModel.makeModelIndex(sourceIndex))
                         })
                     }
 
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Toggle Maximized")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestToggleMaximized(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestToggleMaximized(tasksModel.makeModelIndex(sourceIndex))
                         })
                     }
 
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Move")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestMove(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestMove(tasksModel.makeModelIndex(sourceIndex))
                         })
                     }
 
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Resize")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestResize(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestResize(tasksModel.makeModelIndex(sourceIndex))
                         })
                     }
 
@@ -376,8 +517,55 @@ PlasmoidItem {
                     QQC2.MenuItem {
                         text: i18nc("@action:inmenu", "Close")
                         onTriggered: taskContextMenu.runActionAndClose(function() {
-                            tasksModel.requestClose(tasksModel.makeModelIndex(delegate.model.index))
+                            const sourceIndex = root.sourceIndexForDelegateItem(delegate.model)
+                            tasksModel.requestClose(tasksModel.makeModelIndex(sourceIndex))
                         })
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton
+                    hoverEnabled: false
+                    preventStealing: true
+
+                    property real pressedY: 0
+                    property bool dragMoved: false
+
+                    onPressed: function(mouse) {
+                        pressedY = mouse.y
+                        dragMoved = false
+                    }
+
+                    onPositionChanged: function(mouse) {
+                        if (!root.usingCustomOrder) {
+                            return
+                        }
+
+                        if (!dragMoved && Math.abs(mouse.y - pressedY) > Kirigami.Units.smallSpacing * 2) {
+                            dragMoved = true
+                        }
+
+                        if (!dragMoved) {
+                            return
+                        }
+
+                        const targetIndex = windowListView.indexAt(width / 2, delegate.y + mouse.y)
+                        if (targetIndex >= 0 && targetIndex !== delegate.model.index) {
+                            root.moveCustomTask(delegate.model.index, targetIndex)
+                            windowListView.currentIndex = targetIndex
+                        }
+                    }
+
+                    onReleased: function(mouse) {
+                        if (dragMoved && root.usingCustomOrder) {
+                            mouse.accepted = true
+                            return
+                        }
+
+                        windowListView.currentIndex = model.index
+                        const sourceIndex = root.sourceIndexForDelegateItem(model)
+                        tasksModel.requestActivate(tasksModel.makeModelIndex(sourceIndex))
                     }
                 }
 
@@ -393,6 +581,16 @@ PlasmoidItem {
                             mouse.accepted = true
                         }
                     }
+                }
+
+                PlasmaComponents.Label {
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.rightMargin: Kirigami.Units.smallSpacing
+                    visible: root.usingCustomOrder
+                    opacity: 0.6
+                    text: "::"
+                    font.pixelSize: Kirigami.Units.gridUnit
                 }
             }
 

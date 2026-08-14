@@ -55,6 +55,18 @@
       <label>Window list ordering mode.</label>
       <default>0</default>
     </entry>
+    <entry name="customOrderKeys" type="String">
+      <label>Persisted custom ordering keys.</label>
+      <default></default>
+    </entry>
+    <entry name="enableMaxTitleLength" type="Bool">
+      <label>Whether to enforce maximum window title length.</label>
+      <default>false</default>
+    </entry>
+    <entry name="maxTitleLength" type="Int">
+      <label>Maximum window title length when enabled.</label>
+      <default>50</default>
+    </entry>
   </group>
 
 </kcfg>

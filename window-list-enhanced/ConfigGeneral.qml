@@ -74,6 +74,8 @@ KCM.SimpleKCM {
     property alias cfg_showOnlyCurrentActivity: showOnlyCurrentActivity.checked
     property alias cfg_showOnlyMinimized: showOnlyMinimized.checked
     property int cfg_windowListOrder: Plasmoid.configuration.windowListOrder
+    property alias cfg_enableMaxTitleLength: enableMaxTitleLength.checked
+    property alias cfg_maxTitleLength: maxTitleLength.value
 
     Kirigami.FormLayout {
         anchors.right: parent.right
@@ -233,10 +235,40 @@ KCM.SimpleKCM {
                 {
                     "text": i18nc("@item:inlistbox", "Sort by App (Z-A)"),
                     "value": 2
+                },
+                {
+                    "text": i18nc("@item:inlistbox", "Custom"),
+                    "value": 3
                 }
             ]
             onActivated: root.cfg_windowListOrder = currentValue
             Component.onCompleted: currentIndex = indexOfValue(root.cfg_windowListOrder)
+        }
+
+        QQC2.CheckBox {
+            id: enableMaxTitleLength
+            Kirigami.FormData.label: i18nc("@label:checkbox", "Maximum Title Length:")
+            text: i18nc("@option:check", "Enable")
+        }
+
+        QQC2.SpinBox {
+            id: maxTitleLength
+            from: 1
+            to: 1000
+            stepSize: 1
+            enabled: enableMaxTitleLength.checked
+
+            textFromValue: function(value, locale) {
+                return Number(value).toLocaleString(locale, 'f', 0)
+            }
+
+            valueFromText: function(text, locale) {
+                const parsed = Number.fromLocaleString(locale, text)
+                if (isNaN(parsed) || parsed < 1) {
+                    return 1
+                }
+                return Math.floor(parsed)
+            }
         }
 
         QQC2.Label {

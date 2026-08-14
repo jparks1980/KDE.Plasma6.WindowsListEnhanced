@@ -227,8 +227,12 @@ KCM.SimpleKCM {
                     "value": 0
                 },
                 {
-                    "text": i18nc("@item:inlistbox", "Sort by App"),
+                    "text": i18nc("@item:inlistbox", "Sort by App (A-Z)"),
                     "value": 1
+                },
+                {
+                    "text": i18nc("@item:inlistbox", "Sort by App (Z-A)"),
+                    "value": 2
                 }
             ]
             onActivated: root.cfg_windowListOrder = currentValue

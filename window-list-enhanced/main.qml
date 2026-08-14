@@ -24,6 +24,7 @@ PlasmoidItem {
     property /*QIcon*/ var lastActiveTaskIcon: ""
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
+    readonly property int listOrderSortByAppDesc: 2
 
     Plasmoid.constraintHints: Plasmoid.CanFillArea
     compactRepresentation: windowListButton
@@ -70,7 +71,8 @@ PlasmoidItem {
         screenGeometry: Plasmoid.containment.screenGeometry
         activity: activityInfo.currentActivity
 
-        sortMode: Plasmoid.configuration.windowListOrder === root.listOrderSortByApp
+        sortMode: (Plasmoid.configuration.windowListOrder === root.listOrderSortByApp
+            || Plasmoid.configuration.windowListOrder === root.listOrderSortByAppDesc)
             ? TaskManager.TasksModel.SortAlpha
             : TaskManager.TasksModel.SortDisabled
         groupMode: TaskManager.TasksModel.GroupDisabled
@@ -79,6 +81,8 @@ PlasmoidItem {
         filterByScreen: Plasmoid.configuration.showOnlyCurrentScreen
         filterByActivity: Plasmoid.configuration.showOnlyCurrentActivity
         filterNotMinimized: Plasmoid.configuration.showOnlyMinimized
+
+        Component.onCompleted: root.applyWindowListOrder()
     }
 
     property string longestWindowCaption: ""
@@ -115,9 +119,28 @@ PlasmoidItem {
         fullRepresentationDynamicWidth = Math.ceil(maxWidth) + Kirigami.Units.iconSizes.sizeForLabels * 2 + Kirigami.Units.smallSpacing * 2;
     }
 
+    function applyWindowListOrder() {
+        if (Plasmoid.configuration.windowListOrder === root.listOrderSortByAppDesc) {
+            tasksModel.sort(0, Qt.DescendingOrder)
+        } else {
+            tasksModel.sort(0, Qt.AscendingOrder)
+        }
+    }
+
     Connections {
         target: tasksModel
-        function onModelReset() { updateLongestWindowTitle(); }
+        function onModelReset() {
+            updateLongestWindowTitle();
+            root.applyWindowListOrder();
+        }
+    }
+
+    Connections {
+        target: Plasmoid.configuration
+        function onWindowListOrderChanged() {
+            root.applyWindowListOrder();
+            root.updateLongestWindowTitle();
+        }
     }
 
     Component {

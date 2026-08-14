@@ -28,7 +28,7 @@ PlasmoidItem {
     property bool refocusAfterToggleClose: false
     property string preConfigureFocusedTaskKey: ""
     property bool pendingConfigureRefocus: false
-    property bool configureDialogWasOpened: false
+    property double configureRefocusEarliestMs: 0
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
     readonly property int listOrderSortByAppDesc: 2
@@ -246,6 +246,31 @@ PlasmoidItem {
 
     function blockActiveTaskSync(milliseconds) {
         root.activeTaskSyncBlockedUntilMs = Date.now() + milliseconds
+    }
+
+    Timer {
+        id: configureRefocusTimer
+        interval: 200
+        repeat: true
+
+        onTriggered: {
+            if (!root.pendingConfigureRefocus) {
+                stop()
+                return
+            }
+
+            if (Date.now() < root.configureRefocusEarliestMs) {
+                return
+            }
+
+            if (!menuButton.Window.window || !menuButton.Window.window.active) {
+                return
+            }
+
+            root.pendingConfigureRefocus = false
+            stop()
+            root.requestActivateTaskByKey(root.preConfigureFocusedTaskKey)
+        }
     }
 
     function isItemInTree(item, treeRoot) {
@@ -717,7 +742,8 @@ PlasmoidItem {
             function prepareConfigureRefocus() {
                 root.preConfigureFocusedTaskKey = root.taskKeyForModelIndex(tasksModel.activeTask)
                 root.pendingConfigureRefocus = true
-                root.configureDialogWasOpened = false
+                root.configureRefocusEarliestMs = Date.now() + 1200
+                configureRefocusTimer.restart()
             }
 
             QQC2.Menu {
@@ -802,26 +828,6 @@ PlasmoidItem {
                     onTriggered: compactContextMenu.runActionAndClose(function() {
                         tasksModel.requestClose(menuButton.activeTaskModelIndex())
                     })
-                }
-            }
-
-            Connections {
-                target: menuButton.Window.window
-                function onActiveChanged() {
-                    if (!root.pendingConfigureRefocus || !menuButton.Window.window) {
-                        return
-                    }
-
-                    if (!menuButton.Window.window.active) {
-                        root.configureDialogWasOpened = true
-                        return
-                    }
-
-                    if (root.configureDialogWasOpened) {
-                        root.pendingConfigureRefocus = false
-                        root.configureDialogWasOpened = false
-                        root.requestActivateTaskByKey(root.preConfigureFocusedTaskKey)
-                    }
                 }
             }
 

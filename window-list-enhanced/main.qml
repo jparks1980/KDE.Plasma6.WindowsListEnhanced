@@ -22,6 +22,7 @@ PlasmoidItem {
 
     property string lastActiveTaskName: ""
     property /*QIcon*/ var lastActiveTaskIcon: ""
+    property string lastActiveTaskKey: ""
     property bool suppressNextActiveTaskSync: false
     property double activeTaskSyncBlockedUntilMs: 0
     property string preToggleFocusedTaskKey: ""
@@ -239,6 +240,7 @@ PlasmoidItem {
             return
         }
 
+        root.lastActiveTaskKey = taskKeyForModelIndex(modelIndex)
         root.lastActiveTaskName = tasksModel.data(modelIndex, TaskManager.AbstractTasksModel.AppName)
             || tasksModel.data(modelIndex, 0 /* display name, window title if app name not present */)
         root.lastActiveTaskIcon = tasksModel.data(modelIndex, 1 /* decoration role */)
@@ -736,11 +738,13 @@ PlasmoidItem {
             function snapshotCurrentDisplay() {
                 root.lastActiveTaskName = menuButton.text || ""
                 root.lastActiveTaskIcon = menuButton.iconSource || ""
-                root.preToggleFocusedTaskKey = root.taskKeyForModelIndex(tasksModel.activeTask)
+                root.preToggleFocusedTaskKey = root.lastActiveTaskKey
             }
 
             function prepareConfigureRefocus() {
-                root.preConfigureFocusedTaskKey = root.taskKeyForModelIndex(tasksModel.activeTask)
+                root.preConfigureFocusedTaskKey = root.lastActiveTaskKey !== ""
+                    ? root.lastActiveTaskKey
+                    : root.taskKeyForModelIndex(tasksModel.activeTask)
                 root.pendingConfigureRefocus = true
                 root.configureRefocusEarliestMs = Date.now() + 1200
                 configureRefocusTimer.restart()
@@ -836,6 +840,13 @@ PlasmoidItem {
                 acceptedButtons: Qt.RightButton
                 hoverEnabled: false
                 preventStealing: true
+
+                onPressed: function(mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                        snapshotCurrentDisplay()
+                        root.blockActiveTaskSync(1200)
+                    }
+                }
 
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.RightButton) {

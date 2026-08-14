@@ -660,6 +660,9 @@ PlasmoidItem {
 
             QQC2.Menu {
                 id: compactContextMenu
+                parent: menuButton.Window.window && menuButton.Window.window.contentItem
+                    ? menuButton.Window.window.contentItem
+                    : menuButton
 
                 function runActionAndClose(action) {
                     action()
@@ -749,6 +752,7 @@ PlasmoidItem {
 
                 onClicked: function(mouse) {
                     if (mouse.button === Qt.RightButton) {
+                        root.expanded = false
                         compactContextMenu.popup()
                         mouse.accepted = true
                     }

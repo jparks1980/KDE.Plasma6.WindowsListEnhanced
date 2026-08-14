@@ -645,10 +645,115 @@ PlasmoidItem {
         MenuButton {
             id: menuButton
 
+            function activeTaskModelIndex() {
+                return tasksModel.activeTask
+            }
+
+            function hasActiveTask() {
+                return tasksModel.activeTask.valid
+            }
+
             Layout.minimumWidth: implicitWidth
             Layout.maximumWidth: implicitWidth
             Layout.fillHeight: Plasmoid.formFactor === PlasmaCore.Types.Horizontal
             Layout.fillWidth: Plasmoid.formFactor === PlasmaCore.Types.Vertical
+
+            QQC2.Menu {
+                id: compactContextMenu
+
+                function runActionAndClose(action) {
+                    action()
+                    close()
+                    root.expanded = false
+                }
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Configure Widget")
+                    onTriggered: {
+                        const action = Plasmoid.internalAction("configure")
+                        if (action) {
+                            action.trigger()
+                        }
+                        compactContextMenu.close()
+                    }
+                }
+
+                QQC2.MenuSeparator {}
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Activate")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestActivate(menuButton.activeTaskModelIndex())
+                    })
+                }
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Open New Window")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestNewInstance(menuButton.activeTaskModelIndex())
+                    })
+                }
+
+                QQC2.MenuSeparator {}
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Toggle Minimized")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestToggleMinimized(menuButton.activeTaskModelIndex())
+                    })
+                }
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Toggle Maximized")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestToggleMaximized(menuButton.activeTaskModelIndex())
+                    })
+                }
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Move")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestMove(menuButton.activeTaskModelIndex())
+                    })
+                }
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Resize")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestResize(menuButton.activeTaskModelIndex())
+                    })
+                }
+
+                QQC2.MenuSeparator {}
+
+                QQC2.MenuItem {
+                    text: i18nc("@action:inmenu", "Close")
+                    enabled: menuButton.hasActiveTask()
+                    onTriggered: compactContextMenu.runActionAndClose(function() {
+                        tasksModel.requestClose(menuButton.activeTaskModelIndex())
+                    })
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                hoverEnabled: false
+                preventStealing: true
+
+                onClicked: function(mouse) {
+                    if (mouse.button === Qt.RightButton) {
+                        compactContextMenu.popup()
+                        mouse.accepted = true
+                    }
+                }
+            }
 
             onClicked: {
                 if (tasksModel.activeTask.valid) {

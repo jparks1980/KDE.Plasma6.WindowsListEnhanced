@@ -26,6 +26,9 @@ PlasmoidItem {
     property double activeTaskSyncBlockedUntilMs: 0
     property string preToggleFocusedTaskKey: ""
     property bool refocusAfterToggleClose: false
+    property string preConfigureFocusedTaskKey: ""
+    property bool pendingConfigureRefocus: false
+    property bool configureDialogWasOpened: false
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
     readonly property int listOrderSortByAppDesc: 2
@@ -711,6 +714,12 @@ PlasmoidItem {
                 root.preToggleFocusedTaskKey = root.taskKeyForModelIndex(tasksModel.activeTask)
             }
 
+            function prepareConfigureRefocus() {
+                root.preConfigureFocusedTaskKey = root.taskKeyForModelIndex(tasksModel.activeTask)
+                root.pendingConfigureRefocus = true
+                root.configureDialogWasOpened = false
+            }
+
             QQC2.Menu {
                 id: compactContextMenu
                 popupType: QQC2.Popup.Window
@@ -724,6 +733,7 @@ PlasmoidItem {
                 QQC2.MenuItem {
                     text: i18nc("@action:inmenu", "Configure Widget")
                     onTriggered: {
+                        menuButton.prepareConfigureRefocus()
                         const action = Plasmoid.internalAction("configure")
                         if (action) {
                             action.trigger()
@@ -792,6 +802,26 @@ PlasmoidItem {
                     onTriggered: compactContextMenu.runActionAndClose(function() {
                         tasksModel.requestClose(menuButton.activeTaskModelIndex())
                     })
+                }
+            }
+
+            Connections {
+                target: menuButton.Window.window
+                function onActiveChanged() {
+                    if (!root.pendingConfigureRefocus || !menuButton.Window.window) {
+                        return
+                    }
+
+                    if (!menuButton.Window.window.active) {
+                        root.configureDialogWasOpened = true
+                        return
+                    }
+
+                    if (root.configureDialogWasOpened) {
+                        root.pendingConfigureRefocus = false
+                        root.configureDialogWasOpened = false
+                        root.requestActivateTaskByKey(root.preConfigureFocusedTaskKey)
+                    }
                 }
             }
 

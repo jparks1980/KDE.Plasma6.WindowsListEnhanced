@@ -24,6 +24,8 @@ PlasmoidItem {
     property /*QIcon*/ var lastActiveTaskIcon: ""
     property bool suppressNextActiveTaskSync: false
     property double activeTaskSyncBlockedUntilMs: 0
+    property string preToggleFocusedTaskKey: ""
+    property bool refocusAfterToggleClose: false
     readonly property int listOrderUngrouped: 0
     readonly property int listOrderSortByApp: 1
     readonly property int listOrderSortByAppDesc: 2
@@ -113,6 +115,14 @@ PlasmoidItem {
 
     function taskKeyForSourceIndex(sourceIndex) {
         const idx = tasksModel.makeModelIndex(sourceIndex)
+        return taskKeyForModelIndex(idx)
+    }
+
+    function taskKeyForModelIndex(idx) {
+        if (!idx || !idx.valid) {
+            return ""
+        }
+
         const winIds = tasksModel.data(idx, TaskManager.AbstractTasksModel.WinIdList)
 
         if (winIds && winIds.length) {
@@ -123,6 +133,20 @@ PlasmoidItem {
         const appName = tasksModel.data(idx, TaskManager.AbstractTasksModel.AppName) || ""
         const title = tasksModel.data(idx, 0) || ""
         return "f:" + String(appPid) + ":" + appName + ":" + title
+    }
+
+    function requestActivateTaskByKey(taskKey) {
+        if (!taskKey || taskKey === "") {
+            return
+        }
+
+        for (let i = 0; i < tasksModel.count; ++i) {
+            const idx = tasksModel.makeModelIndex(i)
+            if (taskKeyForModelIndex(idx) === taskKey) {
+                tasksModel.requestActivate(idx)
+                return
+            }
+        }
     }
 
     function parseSavedCustomOrder() {
@@ -383,6 +407,9 @@ PlasmoidItem {
                         windowListView.currentIndex = -1
 
                         root.updateLongestWindowTitle();
+                    } else if (root.refocusAfterToggleClose) {
+                        root.refocusAfterToggleClose = false
+                        root.requestActivateTaskByKey(root.preToggleFocusedTaskKey)
                     }
                 }
             }
@@ -681,6 +708,7 @@ PlasmoidItem {
             function snapshotCurrentDisplay() {
                 root.lastActiveTaskName = menuButton.text || ""
                 root.lastActiveTaskIcon = menuButton.iconSource || ""
+                root.preToggleFocusedTaskKey = root.taskKeyForModelIndex(tasksModel.activeTask)
             }
 
             QQC2.Menu {
@@ -789,6 +817,7 @@ PlasmoidItem {
                 } else {
                     root.suppressNextActiveTaskSync = true
                     root.blockActiveTaskSync(1200)
+                    root.refocusAfterToggleClose = true
                 }
                 root.expanded = !root.expanded
             }

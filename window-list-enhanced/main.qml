@@ -622,15 +622,6 @@ PlasmoidItem {
                     }
                 }
 
-                PlasmaComponents.Label {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: Kirigami.Units.smallSpacing
-                    visible: root.usingCustomOrder
-                    opacity: 0.6
-                    text: "::"
-                    font.pixelSize: Kirigami.Units.gridUnit
-                }
             }
 
             Kirigami.PlaceholderMessage {

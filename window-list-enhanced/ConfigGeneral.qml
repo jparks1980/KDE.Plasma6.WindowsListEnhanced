@@ -17,6 +17,11 @@ KCM.SimpleKCM {
     id: root
 
     readonly property string widgetVersion: {
+        const fromEnhancedKey = Plasmoid.metaData.value("X-WindowListEnhanced-Version")
+        if (fromEnhancedKey) {
+            return fromEnhancedKey
+        }
+
         const fromValue = Plasmoid.metaData.value("Version")
         if (fromValue) {
             return fromValue

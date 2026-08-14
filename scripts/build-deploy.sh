@@ -24,8 +24,18 @@ compute_widget_version() {
     echo ""
 }
 
+compute_git_short_sha() {
+    if command -v git >/dev/null 2>&1 && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git -C "$ROOT_DIR" rev-parse --short HEAD
+        return
+    fi
+
+    echo ""
+}
+
 apply_staged_version() {
     local widget_version="$1"
+    local short_sha="$2"
 
     if [[ -z "$widget_version" ]]; then
         return
@@ -37,7 +47,17 @@ apply_staged_version() {
         sed -E -i "s/(\"License\"[[:space:]]*:[[:space:]]*\"[^\"]*\",)/\\1\n        \"Version\": \"${widget_version}\",/" "$STAGE_DIR/metadata.json"
     fi
 
-    echo "Using widget version: $widget_version"
+    if grep -Eq '"X-WindowListEnhanced-Version"[[:space:]]*:' "$STAGE_DIR/metadata.json"; then
+        sed -E -i "s/(\"X-WindowListEnhanced-Version\"[[:space:]]*:[[:space:]]*\")[^\"]*(\"[[:space:]]*,)/\\1${widget_version}\\2/" "$STAGE_DIR/metadata.json"
+    else
+        sed -E -i "s/(\"X-Plasma-API\"[[:space:]]*:[[:space:]]*\"[^\"]*\",)/\"X-WindowListEnhanced-Version\": \"${widget_version}\",\n    \\1/" "$STAGE_DIR/metadata.json"
+    fi
+
+    if [[ -n "$short_sha" ]]; then
+        echo "Using widget version: $widget_version (git $short_sha)"
+    else
+        echo "Using widget version: $widget_version"
+    fi
 }
 
 usage() {
@@ -75,7 +95,7 @@ stage_package_layout() {
     mkdir -p "$STAGE_DIR/contents/ui" "$STAGE_DIR/contents/config"
 
     cp "$APPLET_DIR/metadata.json" "$STAGE_DIR/metadata.json"
-    apply_staged_version "$(compute_widget_version)"
+    apply_staged_version "$(compute_widget_version)" "$(compute_git_short_sha)"
 
     cp "$APPLET_DIR/main.qml" "$STAGE_DIR/contents/ui/main.qml"
     cp "$APPLET_DIR/MenuButton.qml" "$STAGE_DIR/contents/ui/MenuButton.qml"

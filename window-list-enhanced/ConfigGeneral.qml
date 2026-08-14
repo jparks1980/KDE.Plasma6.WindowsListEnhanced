@@ -16,19 +16,50 @@ import org.kde.kcmutils as KCM
 KCM.SimpleKCM {
     id: root
 
+    readonly property string stagedWidgetVersion: "__WLE_VERSION__"
+
     readonly property string widgetVersion: {
-        const fromEnhancedKey = Plasmoid.metaData.value("X-WindowListEnhanced-Version")
-        if (fromEnhancedKey) {
-            return fromEnhancedKey
+        if (stagedWidgetVersion !== "" && !stagedWidgetVersion.startsWith("__WLE_")) {
+            return stagedWidgetVersion
         }
 
-        const fromValue = Plasmoid.metaData.value("Version")
-        if (fromValue) {
-            return fromValue
+        return readWidgetVersion()
+    }
+
+    function readWidgetVersion() {
+        try {
+            const xhr = new XMLHttpRequest()
+            xhr.open("GET", Qt.resolvedUrl("../../metadata.json"), false)
+            xhr.send()
+
+            if (xhr.status === 0 || xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText)
+                if (data["X-WindowListEnhanced-Version"]) {
+                    return data["X-WindowListEnhanced-Version"]
+                }
+
+                if (data.KPlugin && data.KPlugin.Version) {
+                    return data.KPlugin.Version
+                }
+            }
+        } catch (e) {
+            // Fall through to backup metadata lookups.
         }
 
-        if (Plasmoid.metaData.version) {
-            return Plasmoid.metaData.version
+        if (Plasmoid.metaData) {
+            const fromEnhancedKey = Plasmoid.metaData.value("X-WindowListEnhanced-Version")
+            if (fromEnhancedKey) {
+                return fromEnhancedKey
+            }
+
+            const fromValue = Plasmoid.metaData.value("Version")
+            if (fromValue) {
+                return fromValue
+            }
+
+            if (Plasmoid.metaData.version) {
+                return Plasmoid.metaData.version
+            }
         }
 
         return ""

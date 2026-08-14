@@ -60,6 +60,16 @@ apply_staged_version() {
     fi
 }
 
+apply_staged_config_version() {
+    local widget_version="$1"
+
+    if [[ -z "$widget_version" ]]; then
+        return
+    fi
+
+    sed -i "s/__WLE_VERSION__/${widget_version}/g" "$STAGE_DIR/contents/ui/ConfigGeneral.qml"
+}
+
 usage() {
     cat <<'EOF'
 Usage: scripts/build-deploy.sh [build|deploy|restart|all]
@@ -100,6 +110,7 @@ stage_package_layout() {
     cp "$APPLET_DIR/main.qml" "$STAGE_DIR/contents/ui/main.qml"
     cp "$APPLET_DIR/MenuButton.qml" "$STAGE_DIR/contents/ui/MenuButton.qml"
     cp "$APPLET_DIR/ConfigGeneral.qml" "$STAGE_DIR/contents/ui/ConfigGeneral.qml"
+    apply_staged_config_version "$(compute_widget_version)"
 
     cp "$APPLET_DIR/config.qml" "$STAGE_DIR/contents/config/config.qml"
     cp "$APPLET_DIR/main.xml" "$STAGE_DIR/contents/config/main.xml"

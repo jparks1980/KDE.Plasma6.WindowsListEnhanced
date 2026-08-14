@@ -205,6 +205,18 @@ PlasmoidItem {
         return modelData.index
     }
 
+    function isItemInTree(item, treeRoot) {
+        let current = item
+        while (current) {
+            if (current === treeRoot) {
+                return true
+            }
+            current = current.parent
+        }
+
+        return false
+    }
+
     function updateLongestWindowTitle() {
         if (!tasksModel || !tasksModel.count) {
             longestWindowCaption = "";
@@ -351,6 +363,20 @@ PlasmoidItem {
                         }
 
                         root.updateLongestWindowTitle();
+                    }
+                }
+            }
+
+            Connections {
+                target: windowListView.Window.window
+                function onActiveFocusItemChanged() {
+                    if (!root.expanded || !windowListView.Window.window) {
+                        return
+                    }
+
+                    const focusItem = windowListView.Window.window.activeFocusItem
+                    if (!focusItem || !root.isItemInTree(focusItem, windowListView)) {
+                        root.expanded = false
                     }
                 }
             }

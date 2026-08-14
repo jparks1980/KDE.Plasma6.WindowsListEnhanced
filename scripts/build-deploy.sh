@@ -13,6 +13,33 @@ REAL_XDG_DATA_HOME="$REAL_HOME/.local/share"
 REAL_XDG_CONFIG_HOME="$REAL_HOME/.config"
 REAL_XDG_CACHE_HOME="$REAL_HOME/.cache"
 
+compute_widget_version() {
+    if command -v git >/dev/null 2>&1 && git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        local commit_count
+        commit_count="$(git -C "$ROOT_DIR" rev-list --count HEAD)"
+        echo "1.0.${commit_count}"
+        return
+    fi
+
+    echo ""
+}
+
+apply_staged_version() {
+    local widget_version="$1"
+
+    if [[ -z "$widget_version" ]]; then
+        return
+    fi
+
+    if grep -Eq '"Version"[[:space:]]*:' "$STAGE_DIR/metadata.json"; then
+        sed -E -i "s/(\"Version\"[[:space:]]*:[[:space:]]*\")[^\"]*(\"[[:space:]]*,)/\\1${widget_version}\\2/" "$STAGE_DIR/metadata.json"
+    else
+        sed -E -i "s/(\"License\"[[:space:]]*:[[:space:]]*\"[^\"]*\",)/\\1\n        \"Version\": \"${widget_version}\",/" "$STAGE_DIR/metadata.json"
+    fi
+
+    echo "Using widget version: $widget_version"
+}
+
 usage() {
     cat <<'EOF'
 Usage: scripts/build-deploy.sh [build|deploy|restart|all]
@@ -48,6 +75,7 @@ stage_package_layout() {
     mkdir -p "$STAGE_DIR/contents/ui" "$STAGE_DIR/contents/config"
 
     cp "$APPLET_DIR/metadata.json" "$STAGE_DIR/metadata.json"
+    apply_staged_version "$(compute_widget_version)"
 
     cp "$APPLET_DIR/main.qml" "$STAGE_DIR/contents/ui/main.qml"
     cp "$APPLET_DIR/MenuButton.qml" "$STAGE_DIR/contents/ui/MenuButton.qml"
